@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+
+# Data — regenerated from VAE, not tracked
+data/
+*.csv
+*.npy
+*.pkl
+
+# Notebooks — strip outputs before commit ideally, but ignore checkpoints
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
