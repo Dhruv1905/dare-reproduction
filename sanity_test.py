@@ -157,3 +157,39 @@ padocs, accepted = dare_batch(
 print(f"Test 16 (well-supported prediction): padoc = {padocs[0]:.4f}, accepted = {accepted[0]}")
 print("  Expected: padoc >= 0.33 (one full self-vote); accepted may still be False")
 print("  because the other 2 nearest points are 1 unit away (tight tolerance).")
+
+def test_17_adaptive_reduces_to_vanilla():
+    """alpha=0 => no widening => identical to vanilla fast version."""
+    rng = np.random.default_rng(0)
+    X_tr = rng.uniform(0, 1, size=(500, 2))
+    y_tr = X_tr.sum(axis=1) + rng.normal(0, 0.01, 500)
+    X_te = rng.uniform(0, 1, size=(50, 2))
+    y_te = X_te.sum(axis=1)
+
+    from src.dare import dare_batch_fast, dare_batch_adaptive
+    pad_v, dec_v = dare_batch_fast(X_te, y_te, X_tr, y_tr, x_d=[0.1, 0.1, 0.1])
+    pad_a, dec_a, s = dare_batch_adaptive(X_te, y_te, X_tr, y_tr,
+                                          x_d=[0.1, 0.1, 0.1], alpha=0.0)
+    assert np.allclose(pad_v, pad_a, atol=1e-10), "alpha=0 should match vanilla"
+    assert np.array_equal(dec_v, dec_a)
+    assert np.allclose(s, 1.0)
+    print("test 17 passed: adaptive with alpha=0 == vanilla")
+
+
+def test_18_adaptive_widens_in_sparse_region():
+    """A test point far from a dense cluster should get s > 1 (capped)."""
+    X_tr = np.random.default_rng(1).normal(0, 0.05, size=(500, 2))
+    y_tr = np.zeros(500)
+    X_te = np.array([[1.0, 1.0]])
+    y_te = np.array([0.0])
+
+    from src.dare import dare_batch_adaptive
+    _, _, s = dare_batch_adaptive(X_te, y_te, X_tr, y_tr,
+                                  x_d=[0.1, 0.1, 0.1],
+                                  alpha=0.5, max_scale=2.0)
+    assert 1.0 < s[0] <= 2.0, f"expected widening, got s={s[0]}"
+    print(f"test 18 passed: sparse point got s={s[0]:.3f}")
+    print("\n--- Adaptive tests ---\n")
+    
+test_17_adaptive_reduces_to_vanilla()
+test_18_adaptive_widens_in_sparse_region()

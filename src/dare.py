@@ -257,3 +257,54 @@ def dare_batch_fast(X_test, y_pred, X_train, y_train, x_d, N=3, Q_X=1.0, xi=0.5,
 
     accepted = (Q_X * padocs) >= xi
     return padocs, accepted
+
+def dare_batch_adaptive(
+    X_test, y_pred, X_train, y_train,
+    x_d, N=3, Q_X=1.0, xi=0.5, L=0.2,
+    k_density=10, alpha=0.5, max_scale=2.0,
+):
+    """
+    Adaptive-bandwidth DARE. Same signature as dare_batch_fast plus 3 knobs:
+    k_density, alpha, max_scale. Returns (padocs, accepted, scales).
+    alpha=0 reduces exactly to dare_batch_fast.
+    """
+    X_test = np.asarray(X_test, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    if y_pred.ndim == 1:
+        y_pred = y_pred.reshape(-1, 1)
+    X_train = np.asarray(X_train, dtype=float)
+    y_train = np.asarray(y_train, dtype=float)
+    if y_train.ndim == 1:
+        y_train = y_train.reshape(-1, 1)
+    x_d = np.asarray(x_d, dtype=float)
+
+    # Pre-whitened joint space (same trick as dare_batch_fast)
+    beta = (x_d ** 2) / (np.log(L) ** 2)
+    scale = np.sqrt(beta)
+    joint_train_w = np.concatenate([X_train, y_train], axis=1) / scale
+    joint_test_w = np.concatenate([X_test, y_pred], axis=1) / scale
+
+    tree = BallTree(joint_train_w, leaf_size=40)
+
+    # Reference density from training set's own k-NN (skip self at index 0)
+    k = min(k_density + 1, len(joint_train_w))
+    train_knn, _ = tree.query(joint_train_w, k=k)
+    d_ref = np.median(train_knn[:, 1:].mean(axis=1))
+
+    # Local density at each test point
+    k_test = min(k_density, len(joint_train_w))
+    test_knn, _ = tree.query(joint_test_w, k=k_test)
+    d_local = test_knn.mean(axis=1)
+
+    # Per-point widening factor (never narrow, capped)
+    ratio = d_local / max(d_ref, 1e-12)
+    s = np.clip(1.0 + alpha * (ratio - 1.0), 1.0, max_scale)
+
+    # N nearest, then divide distances by s (== widening x_d by s locally)
+    n_use = min(N, len(joint_train_w))
+    dists, _ = tree.query(joint_test_w, k=n_use)
+    dists_adj = dists / s[:, None]
+
+    padocs = np.exp(-2.0 * dists_adj).mean(axis=1)
+    accepted = (Q_X * padocs) >= xi
+    return padocs, accepted, s

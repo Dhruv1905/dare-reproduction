@@ -47,7 +47,11 @@ def f_degrade(TP, FN):
 
 
 def f1_score(TP, FP, FN):
-    """Eq. 9, expressed in TP/FP/FN form (matches paper)."""
+    """Eq. 9, expressed in TP/FP/FN form (matches paper).
+    Returns 0.0 when nothing was accepted (TP+FP == 0) — otherwise F1
+    spuriously reports 1.0 for total-rejection cases."""
+    if TP + FP == 0:
+        return 0.0
     fdr = f_peril(TP, FP)
     fnr = f_degrade(TP, FN)
     denom = 2 - fdr - fnr

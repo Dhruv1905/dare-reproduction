@@ -29,15 +29,20 @@ def load_transient(path):
     return df[["v_T", "T_UP", "T_FCL"]]
 
 
-def build_split(indices, split_name):
+def build_split(indices, split_name, shift=None):
+    """shift : dict like {'T_UP': +20.0, 'T_FCL': +30.0} or None."""
     frames = []
     for i in indices:
         path = os.path.join(SRC_DIR, f"TransientData{i}.csv")
         frames.append(load_transient(path))
     df = pd.concat(frames, ignore_index=True)
+    if shift:
+        for col, delta in shift.items():
+            df[col] = df[col] + delta
     out_path = os.path.join(OUT_DIR, f"{split_name}.csv")
     df.to_csv(out_path, index=False)
-    print(f"{split_name}: {len(indices)} transients, {len(df)} rows -> {out_path}")
+    print(f"{split_name}: {len(indices)} transients, {len(df)} rows -> {out_path}"
+          + (f"  (shift: {shift})" if shift else ""))
 
 
 def main():
@@ -59,8 +64,8 @@ def main():
 
     build_split(dTrain, "dTrain")
     build_split(dTest1, "dTest1")
-    build_split(dTest2, "dTest2")
-    build_split(dTest3, "dTest3")
+    build_split(dTest2, "dTest2", shift={"T_UP": +8.0, "T_FCL": +12.0})
+    build_split(dTest3, "dTest3", shift={"T_UP": -8.0, "T_FCL": -12.0})
 
 
 if __name__ == "__main__":
